@@ -1,18 +1,24 @@
-def baslat():
-    print("MK Ultra Turbo Simulasyon Core Baslatildi ✅")
 
-if __name__ == "__main__":
-    baslat()
+import os
 from telegram.ext import Updater, CommandHandler
 
 def start(update, context):
-    update.message.reply_text("MK Ultra Turbo Simülasyon Core Aktif ✅")
+    update.message.reply_text("MK Ultra Turbo Simulasyon Core Aktif ✅")
 
-updater = Updater(token=os.environ["BOT_TOKEN"], use_context=True)
-dispatcher = updater.dispatcher
+def main():
+    bot_token = os.environ.get("BOT_TOKEN")
+    if not bot_token:
+        print("❌ BOT_TOKEN bulunamadı. Render environment variable kontrol et.")
+        return
 
-dispatcher.add_handler(CommandHandler("start", start))
+    updater = Updater(token=bot_token, use_context=True)
+    dispatcher = updater.dispatcher
 
-print("MK Ultra Turbo Simulasyon Core Baslatildi ✅")
-updater.start_polling()
-updater.idle()
+    dispatcher.add_handler(CommandHandler("start", start))
+
+    print("MK Ultra Turbo Simülasyon Core Baslatildi ✅")
+    updater.start_polling()
+    updater.idle()   # ❗️ Render'ın botu kapatmasını engeller
+
+if __name__ == "__main__":
+    main()
