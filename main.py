@@ -50,3 +50,35 @@ if __name__ == "__main__":
     Thread(target=run_bot, daemon=True).start()
     # Web’i ana thread’de başlat (Render port tarayıcısı için kritik)
     run_web()
+# --- main.py içine EK: fetch + FAZ1 pipeline tetikleyici ---
+import subprocess
+from dateutil.parser import parse as dtparse
+
+def cmd_fetch(update, context):
+    try:
+        # Kullanım: /fetch 2024-10-15 2024-10-16
+        args = context.args
+        if len(args) != 2:
+            update.message.reply_text("Kullanım: /fetch YYYY-MM-DD YYYY-MM-DD")
+            return
+        d1 = dtparse(args[0]).date().isoformat()
+        d2 = dtparse(args[1]).date().isoformat()
+
+        # 1) Veri çek
+        env = os.environ.copy()
+        env["FETCH_FROM"] = d1
+        env["FETCH_TO"]   = d2
+        # alias ve çıktı yolları render'da çalışma klasöründe
+        env["ALIAS_PATH"] = env.get("ALIAS_PATH", "team_aliases.csv")
+        env["FAZ1_IN_CSV"] = env.get("FAZ1_IN_CSV", "euroleague_faz1.csv")
+
+        r = subprocess.run(["python3","fetch_data.py"], env=env, capture_output=True, text=True, timeout=120)
+        fetch_out = (r.stdout or "") + "\n" + (r.stderr or "")
+
+        # 2) FAZ1 pipeline
+        r2 = subprocess.run(["python3","faz1_pipeline.py"], capture_output=True, text=True, timeout=120)
+        pipe_out = (r2.stdout or "") + "\n" + (r2.stderr or "")
+
+        update.message.reply_text(f"FETCH:\n{fetch_out[-800:]}\n---\nFAZ1:\n{pipe_out[-800:]}")
+    except Exception as e:
+        update.message.reply_text(f"Hata: {e}")
