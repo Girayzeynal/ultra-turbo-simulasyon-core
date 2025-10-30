@@ -22,3 +22,19 @@ def main():
 
 if __name__ == "__main__":
     main()
+import os
+from threading import Thread
+from flask import Flask
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "MK Ultra Turbo Core Running ✅"
+
+def run_web():
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
+
+# Telegram botun start kısmının hemen altına ekle:
+Thread(target=run_web).start()
