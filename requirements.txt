@@ -3,4 +3,10 @@ Flask
 APScheduler
 Pillow
 urllib3==1.26.16
-setuptools 
+setuptools
+pandas
+requests
+beautifulsoup4
+lxml
+python-dateutil
+rapidfuzz 
