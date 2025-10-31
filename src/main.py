@@ -1,50 +1,51 @@
 import os
 from datetime import datetime
-from telegram.ext import Updater, CommandHandler
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from faz1_pipeline import run_faz1
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-def start(update, context):
-    update.message.reply_text("MK Ultra Turbo Simulasyon Core Aktif ✅")
 
-def fetch(update, context):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("MK Ultra Turbo Simülasyon Core Aktif ✅")
+
+
+async def fetch(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        # /fetch YYYY-MM-DD YYYY-MM-DD
         if len(context.args) != 2:
-            update.message.reply_text("Kullanım: /fetch YYYY-MM-DD YYYY-MM-DD")
+            await update.message.reply_text("Kullanım: /fetch YYYY-MM-DD YYYY-MM-DD")
             return
+
         start_date, end_date = context.args
 
-        # tarih doğrulama
         datetime.strptime(start_date, "%Y-%m-%d")
         datetime.strptime(end_date, "%Y-%m-%d")
 
-        update.message.reply_text("FETCH: başlıyor…")
-        msg = run_faz1(start_date, end_date)
-        update.message.reply_text(msg)
+        await update.message.reply_text("FETCH: başlıyor... ⏳")
+        result = run_faz1(start_date, end_date)
+        await update.message.reply_text(result)
+
     except Exception as ex:
-        update.message.reply_text(f"FETCH:\nERR: {ex}")
+        await update.message.reply_text(f"FETCH HATA ⚠️\n{ex}")
 
-def main():
+
+async def main():
     if not TOKEN:
-        raise RuntimeError("TELEGRAM_BOT_TOKEN boş. Render > Environment'a ekleyin.")
+        raise RuntimeError("TELEGRAM_BOT_TOKEN Render ortam değişkenine eklenmemiş!")
 
-    updater = Updater(TOKEN, use_context=True)
+    app = ApplicationBuilder().token(TOKEN).build()
 
-    # Güvenli başlat: bekleyen webhook’u düşür (polling ile çakışmayı engeller)
-    try:
-        updater.bot.delete_webhook(drop_pending_updates=True)
-    except Exception:
-        pass
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("fetch", fetch))
 
-    dp = updater.dispatcher
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("Start", start))  # büyük S gelenler için
-    dp.add_handler(CommandHandler("fetch", fetch))
+    # Poling tek instance modunda
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling()
+    await app.updater.idle()
 
-    updater.start_polling()
-    updater.idle()
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main())
