@@ -1,1 +1,23 @@
+import os
+from telegram.ext import Updater, CommandHandler
 
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
+def start(update, context):
+    update.message.reply_text("MK Ultra Turbo Simülasyon Core Aktif ✅")
+
+def fetch(update, context):
+    update.message.reply_text("FAZ-1 Çekirdek hazır ✅\nVeri modülü bağlanacak...")
+
+def main():
+    updater = Updater(TOKEN, use_context=True)
+
+    dp = updater.dispatcher
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(CommandHandler("fetch", fetch))
+
+    updater.start_polling()
+    updater.idle()
+
+if __name__ == "__main__":
+    main()
