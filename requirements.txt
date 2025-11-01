@@ -3,4 +3,6 @@ pandas
 numpy
 requests
 schedule
-python-dotenv 
+python-dotenv
+Flask
+gunicorn 
