@@ -1,27 +1,18 @@
 import os
 import asyncio
 from datetime import datetime
-from flask import Flask, request, jsonify
-
 from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from aiohttp import web
 
-# Analiz fonksiyonun (mevcut kodundan)
+# kendi pipeline fonksiyonunu kullan
 from faz1_pipeline import run_faz1
 
-# Ortam değişkeni ismi senin repo ile uyumlu:
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-if not TOKEN:
-    raise RuntimeError("TELEGRAM_BOT_TOKEN ortam değişkeni eksik!")
 
-app = Flask(__name__)
-
-# PTB v20 uygulaması
-application = Application.builder().token(TOKEN).build()
-
-# --- Komutlar ---
+# --- Telegram command handlers ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("MK Ultra Turbo Simulasyon Core Aktif ✅")
+    await update.message.reply_text("MK Ultra Turbo Simülasyon Core Aktif ✅")
 
 async def fetch(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -30,40 +21,60 @@ async def fetch(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         start_date, end_date = context.args
-        # Tarih doğrulama
+        # opsiyonel: parse kontrolü
         datetime.strptime(start_date, "%Y-%m-%d")
         datetime.strptime(end_date, "%Y-%m-%d")
 
-        await update.message.reply_text("FETCH: başlıyor... ⛏️")
+        await update.message.reply_text("FETCH: başlıyor... ⏳")
         result = run_faz1(start_date, end_date)
-        await update.message.reply_text(result)
+        # result string dönüyorsa:
+        await update.message.reply_text(str(result))
     except Exception as ex:
         await update.message.reply_text(f"FETCH HATA ⚠️\n{ex}")
 
-# Handler’ları ekle
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CommandHandler("fetch", fetch))
+# --- küçük health web server (aiohttp) ---
+async def _health(request):
+    return web.Response(text="ok")
 
-# --- Webhook entegrasyonu ---
-@app.before_first_request
-def _startup_bot():
-    """Flask ilk isteği almadan önce PTB uygulamasını başlat."""
-    loop = asyncio.get_event_loop()
-    loop.create_task(application.initialize())
-    loop.create_task(application.start())
+async def start_web_server(host="0.0.0.0", port: int = 8080):
+    app = web.Application()
+    app.router.add_get("/health", _health)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, host, port)
+    await site.start()
+    return runner
 
-@app.route("/", methods=["GET"])
-def health():
-    return jsonify(ok=True), 200
+# --- bot startup (polling) ---
+async def start_bot_and_web():
+    if not TOKEN:
+        raise RuntimeError("TELEGRAM_BOT_TOKEN environment variable yok!")
 
-@app.route(f"/{TOKEN}", methods=["POST"])
-def receive_update():
-    """Telegram'dan gelen güncellemeleri PTB kuyruğuna bırak."""
-    data = request.get_json(force=True)
-    update = Update.de_json(data, application.bot)
-    application.update_queue.put_nowait(update)
-    return "OK", 200
+    application = ApplicationBuilder().token(TOKEN).build()
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("fetch", fetch))
 
-# Geliştirici çalıştırması için (Docker'da gunicorn çalışacak)
+    # initialize & start the application
+    await application.initialize()
+    await application.start()
+
+    # başlat polling (background)
+    # start_polling() returns when polling started
+    await application.updater.start_polling()
+
+    # start a minimal web server for Fly healthchecks
+    port = int(os.environ.get("PORT", "8080"))
+    await start_web_server(port=port)
+
+    # uygulama çalışır durumda kalsın
+    try:
+        while True:
+            await asyncio.sleep(3600)
+    finally:
+        # temiz kapat
+        await application.updater.stop()
+        await application.stop()
+        await application.shutdown()
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
+    asyncio.run(start_bot_and_web())
